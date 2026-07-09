@@ -26,7 +26,16 @@
       "48": "icons/icon48.png",
       "96": "icons/icon96.png",
       "128": "icons/icon128.png"
-    }
+    },
+    "default_popup": "src/popup/popup.html"
+  },
+  "permissions": [
+    "storage",
+    "alarms",
+    "notifications"
+  ],
+  "background": {
+    "service_worker": "src/background/service-worker.js"
   },
   "content_scripts": [
     {
@@ -34,6 +43,7 @@
       "css": ["src/styles.css"],
       "js": [
         "src/content/constants.js",
+        "src/shared/format.js",
         "src/content/bridge-client.js",
         "src/vendor/o200k_base.js",
         "src/content/tokens.js",

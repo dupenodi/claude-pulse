@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="dark">
+<head>
+	<meta charset="UTF-8" />
+	<title>Claude Pulse</title>
+	<link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+	<div class="pp">
+
+		<!-- Header: small mark + wordmark, no oversized branding -->
+		<header class="pp-header">
+			<span class="pp-logo" aria-hidden="true">
+				<svg width="14" height="14" viewBox="0 0 300 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+					<rect x="40" y="38" width="210" height="210" rx="48" fill="currentColor" fill-opacity="0.12"/>
+					<path d="M64 143 L112 143 L132 88 L152 198 L167 143 L226 143" stroke="currentColor" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+				</svg>
+			</span>
+			<span class="pp-wordmark">Claude Pulse</span>
+			<span class="pp-version">1.2.1</span>
+		</header>
+
+		<!-- Body: 5h session and when it resets -->
+		<div class="pp-body">
+			<div class="pp-row">
+				<span class="pp-row__label">5h session</span>
+				<div class="pp-bar">
+					<div id="session-bar-fill" class="pp-bar__fill" style="width: 0%"></div>
+				</div>
+				<span id="session-meta" class="pp-row__meta">0%</span>
+			</div>
+
+			<p class="pp-note">No resets scheduled</p>
+		</div>
+
+		<!-- Sync status: quiet metadata, not a colored alert -->
+		<div class="pp-sync">
+			<span class="pp-sync__text">Synced --</span>
+			<button class="pp-refresh" type="button" aria-label="Refresh usage">
+				<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M23 4v6h-6"></path>
+					<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+				</svg>
+			</button>
+		</div>
+
+		<!-- Footer: repo link (functional) + a quiet developer credit, not a card -->
+		<footer class="pp-footer">
+			<a class="pp-footer__repo" href="https://github.com/samirpatil2000/claude-pulse" target="_blank" rel="noopener">
+				<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49 0-.24-.01-.87-.01-1.71-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.63.07-.63 1 .07 1.53 1.05 1.53 1.05.89 1.57 2.34 1.11 2.91.85.09-.67.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.31.1-2.72 0 0 .84-.28 2.75 1.05a9.3 9.3 0 0 1 5 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.46.1 2.72.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.8-4.57 5.06.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.81 0 .27.18.6.69.49A10.26 10.26 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>
+				<span>Source</span>
+			</a>
+			<span class="pp-footer__credit">by Samir Patil</span>
+		</footer>
+
+	</div>
+	<script src="../shared/format.js"></script>
+	<script src="popup.js"></script>
+</body>
+</html>

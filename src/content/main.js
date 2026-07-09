@@ -178,6 +178,19 @@
 		usageResetMs.five_hour = normalized.five_hour?.resets_at ? Date.parse(normalized.five_hour.resets_at) : null;
 		usageResetMs.seven_day = normalized.seven_day?.resets_at ? Date.parse(normalized.seven_day.resets_at) : null;
 		ui.setUsage(normalized);
+
+		if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+			try {
+				chrome.storage.local.set({
+					pulse_usage_state: {
+						usageState: normalized,
+						lastUsageUpdateMs: now
+					}
+				});
+			} catch (e) {
+				// Context was invalidated, script will terminate on next tick check
+			}
+		}
 	}
 
 	function updateOrgIdIfNeeded(newOrgId) {
@@ -309,6 +322,19 @@
 			}
 		}, 60000);
 	});
+
+	if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+		chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+			if (request && request.action === 'refresh_usage') {
+				refreshUsage().then(() => {
+					sendResponse({ success: true });
+				}).catch(() => {
+					sendResponse({ success: false });
+				});
+				return true;
+			}
+		});
+	}
 
 	handleUrlChange();
 
