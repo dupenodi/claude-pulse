@@ -222,7 +222,7 @@
 
 				if (usageMissing && !usageReattachPending) {
 					usageReattachPending = true;
-					CC.waitForElement(CC.DOM.MODEL_SELECTOR_DROPDOWN, 60000).then((el) => {
+					CC.waitForElement('.rounded-composer, [data-testid="chat-input-grid-container"], [data-testid="model-selector-dropdown"]', 60000).then((el) => {
 						usageReattachPending = false;
 						if (el) this.attachUsageLine();
 					});
@@ -242,7 +242,7 @@
 		_initUsageLine() {
 			this.usageLine = document.createElement('div');
 			this.usageLine.className =
-				'text-text-400 text-[14px] cc-usageRow cc-hidden flex flex-row flex-nowrap items-center gap-3 w-full';
+				'text-text-400 text-[14px] cc-usageRow flex flex-row flex-nowrap items-center gap-3 w-full';
 
 			this.sessionGroup = document.createElement('div');
 			this.sessionGroup.className = 'cc-usageGroup cc-usageStrip';
@@ -265,7 +265,7 @@
 			this.sessionGroup.appendChild(this.sessionInlineSpan);
 
 			this.weeklyGroup = document.createElement('div');
-			this.weeklyGroup.className = 'cc-usageGroup cc-usageStrip cc-usageStrip--end';
+			this.weeklyGroup.className = 'cc-usageGroup cc-usageStrip cc-usageStrip--end cc-hidden';
 
 			this.weeklyTitleSpan = document.createElement('span');
 			this.weeklyTitleSpan.className = 'cc-usageStrip__label';
@@ -309,6 +309,7 @@
 			this.usageMetaGroup.appendChild(this.usageRefreshBtn);
 			this.usageLine.appendChild(this.usageMetaGroup);
 
+			this.setUsage({ five_hour: { utilization: 0, resets_at: null }, seven_day: null });
 			this.refreshProgressChrome();
 		}
 
@@ -365,36 +366,17 @@
 
 		attachUsageLine() {
 			if (!this.usageLine) return;
-			const modelSelector = document.querySelector(CC.DOM.MODEL_SELECTOR_DROPDOWN);
-			if (!modelSelector) return;
+			const composer =
+				document.querySelector('.rounded-composer') ||
+				document.querySelector('[data-testid="chat-input-grid-container"]') ||
+				document.querySelector('[data-testid="chat-input-grid-area"]') ||
+				document.querySelector('fieldset') ||
+				CC.findModelSelector()?.parentElement;
 
-			const gridContainer = modelSelector.closest('[data-testid="chat-input-grid-container"]');
-			const gridArea = modelSelector.closest('[data-testid="chat-input-grid-area"]');
+			if (!composer) return;
 
-			const findToolbarRow = (el, stopAt) => {
-				let cur = el;
-				while (cur && cur !== document.body) {
-					if (stopAt && cur === stopAt) break;
-					if (cur !== el && cur.nodeType === 1) {
-						const style = window.getComputedStyle(cur);
-						if (style.display === 'flex' && style.flexDirection === 'row') {
-							const buttons = cur.querySelectorAll('button').length;
-							if (buttons > 1) return cur;
-						}
-					}
-					cur = cur.parentElement;
-				}
-				return null;
-			};
-
-			const toolbarRow =
-				(gridContainer ? findToolbarRow(modelSelector, gridArea || gridContainer) : null) ||
-				findToolbarRow(modelSelector) ||
-				modelSelector.parentElement?.parentElement?.parentElement;
-			if (!toolbarRow) return;
-
-			if (toolbarRow.nextElementSibling !== this.usageLine) {
-				toolbarRow.after(this.usageLine);
+			if (composer.nextElementSibling !== this.usageLine) {
+				composer.after(this.usageLine);
 			}
 			this.refreshProgressChrome();
 		}
@@ -414,10 +396,12 @@
 		setConversationMetrics({ totalTokens, cachedUntil } = {}) {
 			this.pendingCache = false;
 
-			if (typeof totalTokens !== 'number') {
+			if (typeof totalTokens !== 'number' || totalTokens <= 0) {
 				this.lengthDisplay.textContent = '';
+				this.lengthBar = null;
 				this.cachedDisplay.textContent = '';
 				this.lastCachedUntilMs = null;
+				this.cacheTimeSpan = null;
 				this._renderHeader();
 				return;
 			}
@@ -511,10 +495,8 @@
 			this.refreshProgressChrome();
 			const session = usage?.five_hour || null;
 			const weekly = usage?.seven_day || null;
-			const hasAnyUsage =
-				!!(session && typeof session.utilization === 'number') ||
-				!!(weekly && typeof weekly.utilization === 'number');
-			this.usageLine?.classList.toggle('cc-hidden', !hasAnyUsage);
+
+			this.usageLine?.classList.remove('cc-hidden');
 
 			if (session && typeof session.utilization === 'number') {
 				const rawPct = session.utilization;
@@ -528,8 +510,7 @@
 				this.sessionBarFill.classList.remove('cc-full');
 				if (width >= 99.5) this.sessionBarFill.classList.add('cc-full');
 			} else {
-				this._sessionUtilPct = null;
-				if (this.sessionInlineSpan) this.sessionInlineSpan.textContent = '';
+				this._sessionUtilPct = 0;
 				this.sessionBarFill.style.width = '0%';
 				this.sessionBarFill.classList.remove('cc-warn', 'cc-critical', 'cc-full');
 				this.sessionResetMs = null;

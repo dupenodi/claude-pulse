@@ -82,6 +82,34 @@
 
 	CC.waitForHeaderAnchor = waitForHeaderAnchor;
 
+	function waitForModelSelector(timeoutMs) {
+		const existing = CC.findModelSelector();
+		if (existing) return Promise.resolve(existing);
+
+		return new Promise((resolve) => {
+			let timeoutId;
+			const observer = new MutationObserver(() => {
+				const el = CC.findModelSelector();
+				if (el) {
+					if (timeoutId) clearTimeout(timeoutId);
+					observer.disconnect();
+					resolve(el);
+				}
+			});
+
+			observer.observe(document.body, { childList: true, subtree: true });
+
+			if (timeoutMs) {
+				timeoutId = setTimeout(() => {
+					observer.disconnect();
+					resolve(null);
+				}, timeoutMs);
+			}
+		});
+	}
+
+	CC.waitForModelSelector = waitForModelSelector;
+
 	function observeUrlChanges(callback) {
 		let lastPath = window.location.pathname;
 
@@ -116,8 +144,8 @@
 		const fiveHour = normalizeWindow(raw.five_hour);
 		const sevenDay = normalizeWindow(raw.seven_day);
 
-		if (!fiveHour && !sevenDay) return null;
-		return { five_hour: fiveHour, seven_day: sevenDay };
+		// If no usage windows are returned (e.g. Free plan), default 5h window to 0%
+		return { five_hour: fiveHour || { utilization: 0, resets_at: null }, seven_day: sevenDay };
 	}
 
 	function parseUsageFromMessageLimit(raw) {
@@ -266,10 +294,10 @@
 	async function handleUrlChange() {
 		currentConversationId = getConversationId();
 
-		waitForElement(CC.DOM.MODEL_SELECTOR_DROPDOWN, 60000).then((el) => {
+		CC.waitForModelSelector(60000).then((el) => {
 			if (el) ui.attachUsageLine();
 		});
-		waitForHeaderAnchor(60000).then((el) => {
+		CC.waitForHeaderAnchor(60000).then((el) => {
 			if (el) ui.attachHeader();
 		});
 

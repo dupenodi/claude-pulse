@@ -91,6 +91,8 @@
 	z-index: 50;
 	user-select: none;
 	animation: cc-fadeIn 400ms cubic-bezier(0.22, 1, 0.36, 1) 100ms both;
+	margin-top: 4px;
+	padding: 0 4px;
 }
 
 .cc-usageGroup {
@@ -125,7 +127,8 @@
 }
 
 .cc-usageStrip__bar {
-	flex-shrink: 0;
+	flex: 1;
+	min-width: 48px;
 }
 
 .cc-usageStrip__meta {

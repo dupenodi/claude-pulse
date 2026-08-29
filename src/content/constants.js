@@ -8,16 +8,42 @@
 		CHAT_HEADER_ANCHORS: [
 			'[data-testid="chat-title-split"]',
 			'button:has(span.font-base-bold)',
-			'[data-testid="chat-menu-trigger"]'
+			'[data-testid="chat-menu-trigger"]',
+			'header button[aria-haspopup="menu"]',
+			'header button[aria-label*="chat" i]'
 		],
 		MODEL_SELECTOR_DROPDOWN: '[data-testid="model-selector-dropdown"]',
+		MODEL_SELECTOR_ANCHORS: [
+			'[data-testid="model-selector-dropdown"]',
+			'button[aria-label^="Model:"]',
+			'button[aria-haspopup="menu"][aria-label*="Sonnet" i]',
+			'button[aria-haspopup="menu"][aria-label*="Opus" i]',
+			'button[aria-haspopup="menu"][aria-label*="Haiku" i]',
+			'[data-testid*="model-selector"]'
+		],
 		BRIDGE_SCRIPT_ID: 'cc-bridge-script'
 	});
 
 	CC.findHeaderAnchor = () => {
 		for (const selector of CC.DOM.CHAT_HEADER_ANCHORS) {
-			const el = document.querySelector(selector);
-			if (el) return el;
+			try {
+				const el = document.querySelector(selector);
+				if (el) return el;
+			} catch {
+				// ignore selector exceptions
+			}
+		}
+		return null;
+	};
+
+	CC.findModelSelector = () => {
+		for (const selector of CC.DOM.MODEL_SELECTOR_ANCHORS) {
+			try {
+				const el = document.querySelector(selector);
+				if (el) return el;
+			} catch {
+				// ignore selector exceptions
+			}
 		}
 		return null;
 	};
