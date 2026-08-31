@@ -21,6 +21,18 @@
 			'button[aria-haspopup="menu"][aria-label*="Haiku" i]',
 			'[data-testid*="model-selector"]'
 		],
+		// Home + chat composer editor (Chat/Cowork merged composer, Aug 2026+)
+		COMPOSER_EDITOR_ANCHORS: [
+			'[contenteditable="true"][role="textbox"]',
+			'div[contenteditable="true"]',
+			'[data-testid="chat-input-grid-container"] [contenteditable="true"]',
+			'.rounded-composer [contenteditable="true"]'
+		],
+		COMPOSER_SHELL_FALLBACKS: [
+			'.rounded-composer',
+			'[data-testid="chat-input-grid-container"]',
+			'fieldset'
+		],
 		BRIDGE_SCRIPT_ID: 'cc-bridge-script'
 	});
 
@@ -48,20 +60,100 @@
 		return null;
 	};
 
+	CC.findComposerEditor = () => {
+		for (const selector of CC.DOM.COMPOSER_EDITOR_ANCHORS) {
+			try {
+				const el = document.querySelector(selector);
+				if (el && el.getBoundingClientRect().height > 0) return el;
+			} catch {
+				// ignore selector exceptions
+			}
+		}
+		return null;
+	};
+
+	// Claude's composer paints a rounded shell; Chat/Cowork + model controls are
+	// absolutely positioned on an inner position:relative row. Walk from the
+	// editor to that row, then out through single-child wrappers to the shell
+	// that draws the box — so usage mounts outside the card, not inside the
+	// absolute toolbar (which overlaps Chat/Cowork after the Aug 2026 redesign).
+	CC.findComposerSurface = () => {
+		const editor = CC.findComposerEditor();
+		if (editor) {
+			let row = null;
+			let node = editor.parentElement;
+			for (let hops = 0; node && hops < 10; hops++, node = node.parentElement) {
+				if (window.getComputedStyle(node).position !== 'relative') continue;
+				const ownsAbsoluteControls = [...node.querySelectorAll('button')].some((btn) => {
+					for (let el = btn.parentElement; el && el !== node; el = el.parentElement) {
+						if (window.getComputedStyle(el).position === 'absolute') return true;
+					}
+					return false;
+				});
+				if (ownsAbsoluteControls) {
+					row = node;
+					break;
+				}
+			}
+
+			if (row) {
+				let surface = row;
+				for (let hops = 0; hops < 5; hops++) {
+					const parent = surface.parentElement;
+					if (!parent || parent === document.body || parent === document.documentElement) break;
+					// Stop before climbing into page columns that also hold
+					// disclaimer / sibling chrome — only unwrap single-child shells.
+					if (parent.children.length !== 1) break;
+					surface = parent;
+				}
+				return surface;
+			}
+		}
+
+		for (const selector of CC.DOM.COMPOSER_SHELL_FALLBACKS) {
+			try {
+				const el = document.querySelector(selector);
+				if (el) return el;
+			} catch {
+				// ignore selector exceptions
+			}
+		}
+
+		// Last resort: climb from model selector, but never return an absolute
+		// control group (that's what caused the overlap with Chat/Cowork).
+		const model = CC.findModelSelector();
+		if (!model) return null;
+		let cur = model.parentElement;
+		for (let hops = 0; cur && hops < 12; hops++, cur = cur.parentElement) {
+			const style = window.getComputedStyle(cur);
+			if (style.position === 'absolute' || style.display === 'contents') continue;
+			if (style.position === 'relative' && cur.querySelector('button')) {
+				let surface = cur;
+				for (let i = 0; i < 5; i++) {
+					const parent = surface.parentElement;
+					if (!parent || parent.children.length !== 1) break;
+					surface = parent;
+				}
+				return surface;
+			}
+		}
+		return null;
+	};
+
 	CC.CONST = Object.freeze({
 		CACHE_WINDOW_MS: 5 * 60 * 1000,
 		CONTEXT_LIMIT_TOKENS: 200000
 	});
 
 	CC.COLORS = Object.freeze({
-		PROGRESS_FILL_DARK: 'rgba(255, 255, 255, 0.45)',
-		PROGRESS_FILL_LIGHT: 'rgba(0, 0, 0, 0.30)',
-		PROGRESS_TRACK_DARK: 'rgba(255, 255, 255, 0.08)',
-		PROGRESS_TRACK_LIGHT: 'rgba(0, 0, 0, 0.06)',
+		PROGRESS_FILL_DARK: 'rgba(250, 249, 245, 0.72)',
+		PROGRESS_FILL_LIGHT: 'rgba(20, 20, 19, 0.55)',
+		PROGRESS_TRACK_DARK: 'rgba(250, 249, 245, 0.12)',
+		PROGRESS_TRACK_LIGHT: 'rgba(20, 20, 19, 0.08)',
 		PROGRESS_OUTLINE_DARK: 'transparent',
 		PROGRESS_OUTLINE_LIGHT: 'transparent',
-		PROGRESS_MARKER_DARK: 'rgba(255, 255, 255, 0.7)',
-		PROGRESS_MARKER_LIGHT: 'rgba(0, 0, 0, 0.5)',
+		PROGRESS_MARKER_DARK: 'rgba(250, 249, 245, 0.75)',
+		PROGRESS_MARKER_LIGHT: 'rgba(20, 20, 19, 0.55)',
 		AMBER_WARNING: '#d97706',
 		CRITICAL_WARNING: '#ef4444',
 		CACHE_ACTIVE_DARK: 'rgba(74, 222, 128, 0.8)',
