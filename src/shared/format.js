@@ -29,12 +29,25 @@
 			return `${days}d ${remHours}h`;
 		},
 
+		formatUsagePct(rawPct) {
+			return `${Math.round(rawPct)}%`;
+		},
+
+		formatRemaining(resetMs) {
+			if (resetMs == null || !Number.isFinite(resetMs)) return '';
+			return this.formatResetCountdown(resetMs);
+		},
+
+		formatUsageReset(resetMs) {
+			const remaining = this.formatRemaining(resetMs);
+			if (!remaining) return '';
+			return `resets in ${remaining}`;
+		},
+
 		formatUsageStripText(rawPct, resetMs) {
-			const used = Math.round(rawPct * 10) / 10;
-			const parts = [`${used}% used`];
-			if (resetMs != null && Number.isFinite(resetMs)) {
-				parts.push(`resets in ${this.formatResetCountdown(resetMs)}`);
-			}
+			const parts = [`${this.formatUsagePct(rawPct)} used`];
+			const reset = this.formatUsageReset(resetMs);
+			if (reset) parts.push(reset);
 			return parts.join(' · ');
 		}
 	};

@@ -110,6 +110,34 @@
 
 	CC.waitForModelSelector = waitForModelSelector;
 
+	function waitForComposerSurface(timeoutMs) {
+		const existing = CC.findComposerSurface();
+		if (existing) return Promise.resolve(existing);
+
+		return new Promise((resolve) => {
+			let timeoutId;
+			const observer = new MutationObserver(() => {
+				const el = CC.findComposerSurface();
+				if (el) {
+					if (timeoutId) clearTimeout(timeoutId);
+					observer.disconnect();
+					resolve(el);
+				}
+			});
+
+			observer.observe(document.body, { childList: true, subtree: true });
+
+			if (timeoutMs) {
+				timeoutId = setTimeout(() => {
+					observer.disconnect();
+					resolve(null);
+				}, timeoutMs);
+			}
+		});
+	}
+
+	CC.waitForComposerSurface = waitForComposerSurface;
+
 	function observeUrlChanges(callback) {
 		let lastPath = window.location.pathname;
 
@@ -294,7 +322,7 @@
 	async function handleUrlChange() {
 		currentConversationId = getConversationId();
 
-		CC.waitForModelSelector(60000).then((el) => {
+		CC.waitForComposerSurface(60000).then((el) => {
 			if (el) ui.attachUsageLine();
 		});
 		CC.waitForHeaderAnchor(60000).then((el) => {

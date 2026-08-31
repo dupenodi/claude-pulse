@@ -103,16 +103,16 @@
 			this.pendingCache = false;
 
 			this.usageLine = null;
-			this.sessionTitleSpan = null;
-			this.sessionInlineSpan = null;
-			this.weeklyTitleSpan = null;
-			this.weeklyInlineSpan = null;
+			this.sessionPctSpan = null;
+			this.sessionRemainSpan = null;
+			this.weeklyPctSpan = null;
+			this.weeklyRemainSpan = null;
 			this._sessionUtilPct = null;
 			this._weeklyUtilPct = null;
-			this.sessionBar = null;
-			this.sessionBarFill = null;
-			this.weeklyBar = null;
-			this.weeklyBarFill = null;
+			this.sessionRing = null;
+			this.sessionRingFill = null;
+			this.weeklyRing = null;
+			this.weeklyRingFill = null;
 			this.sessionResetMs = null;
 			this.weeklyResetMs = null;
 			this.refreshingUsage = false;
@@ -144,19 +144,25 @@
 		refreshProgressChrome() {
 			const { strokeColor, trackColor, fillColor, markerColor } = this.getProgressChrome();
 
-			const applyBarChrome = (bar, { fillWarn, fillCritical } = {}) => {
-				if (!bar) return;
-				bar.style.setProperty('--cc-stroke', strokeColor);
-				bar.style.setProperty('--cc-track', trackColor);
-				bar.style.setProperty('--cc-fill', fillColor);
-				bar.style.setProperty('--cc-fill-warn', fillWarn ?? fillColor);
-				bar.style.setProperty('--cc-fill-critical', fillCritical ?? fillWarn ?? fillColor);
-				bar.style.setProperty('--cc-marker', markerColor);
+			const applyChrome = (el, { fillWarn, fillCritical } = {}) => {
+				if (!el) return;
+				el.style.setProperty('--cc-stroke', strokeColor);
+				el.style.setProperty('--cc-track', trackColor);
+				el.style.setProperty('--cc-fill', fillColor);
+				el.style.setProperty('--cc-fill-warn', fillWarn ?? fillColor);
+				el.style.setProperty('--cc-fill-critical', fillCritical ?? fillWarn ?? fillColor);
+				el.style.setProperty('--cc-marker', markerColor);
 			};
 
-			applyBarChrome(this.lengthBar, { fillWarn: fillColor });
-			applyBarChrome(this.sessionBar, { fillWarn: CC.COLORS.AMBER_WARNING, fillCritical: CC.COLORS.CRITICAL_WARNING });
-			applyBarChrome(this.weeklyBar, { fillWarn: CC.COLORS.AMBER_WARNING, fillCritical: CC.COLORS.CRITICAL_WARNING });
+			applyChrome(this.lengthBar, { fillWarn: fillColor });
+			applyChrome(this.sessionRing, {
+				fillWarn: CC.COLORS.AMBER_WARNING,
+				fillCritical: CC.COLORS.CRITICAL_WARNING
+			});
+			applyChrome(this.weeklyRing, {
+				fillWarn: CC.COLORS.AMBER_WARNING,
+				fillCritical: CC.COLORS.CRITICAL_WARNING
+			});
 		}
 
 		initialize() {
@@ -222,7 +228,7 @@
 
 				if (usageMissing && !usageReattachPending) {
 					usageReattachPending = true;
-					CC.waitForElement('.rounded-composer, [data-testid="chat-input-grid-container"], [data-testid="model-selector-dropdown"]', 60000).then((el) => {
+					CC.waitForComposerSurface(60000).then((el) => {
 						usageReattachPending = false;
 						if (el) this.attachUsageLine();
 					});
@@ -239,50 +245,81 @@
 			this.domObserver.observe(document.body, { childList: true, subtree: true });
 		}
 
+		_buildMeter() {
+			const RING_R = 9;
+			const CIRC = 2 * Math.PI * RING_R;
+
+			const meter = document.createElement('div');
+			meter.className = 'cc-meter cc-tooltipTrigger';
+
+			const ring = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+			ring.setAttribute('class', 'cc-meter__ring');
+			ring.setAttribute('viewBox', '0 0 24 24');
+			ring.setAttribute('aria-hidden', 'true');
+
+			const track = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+			track.setAttribute('class', 'cc-meter__ringTrack');
+			track.setAttribute('cx', '12');
+			track.setAttribute('cy', '12');
+			track.setAttribute('r', String(RING_R));
+
+			const fill = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+			fill.setAttribute('class', 'cc-meter__ringFill');
+			fill.setAttribute('cx', '12');
+			fill.setAttribute('cy', '12');
+			fill.setAttribute('r', String(RING_R));
+			fill.style.strokeDasharray = String(CIRC);
+			fill.style.strokeDashoffset = String(CIRC);
+
+			ring.appendChild(track);
+			ring.appendChild(fill);
+
+			const stats = document.createElement('span');
+			stats.className = 'cc-meter__stats';
+
+			const pct = document.createElement('span');
+			pct.className = 'cc-meter__pct';
+
+			const remain = document.createElement('span');
+			remain.className = 'cc-meter__remain';
+
+			stats.appendChild(pct);
+			stats.appendChild(remain);
+
+			meter.appendChild(ring);
+			meter.appendChild(stats);
+
+			return { meter, pct, remain, ring, fill, circ: CIRC };
+		}
+
+		_setRingProgress(fill, circ, pct) {
+			if (!fill) return;
+			const clamped = Math.max(0, Math.min(100, pct));
+			fill.style.strokeDashoffset = String(circ * (1 - clamped / 100));
+		}
+
 		_initUsageLine() {
 			this.usageLine = document.createElement('div');
-			this.usageLine.className =
-				'text-text-400 text-[14px] cc-usageRow flex flex-row flex-nowrap items-center gap-3 w-full';
+			this.usageLine.className = 'text-text-300 cc-usageRow';
+			this.usageLine.setAttribute('role', 'group');
+			this.usageLine.setAttribute('aria-label', 'Claude usage limits');
 
-			this.sessionGroup = document.createElement('div');
-			this.sessionGroup.className = 'cc-usageGroup cc-usageStrip';
+			const session = this._buildMeter();
+			this.sessionGroup = session.meter;
+			this.sessionPctSpan = session.pct;
+			this.sessionRemainSpan = session.remain;
+			this.sessionRing = session.ring;
+			this.sessionRingFill = session.fill;
+			this._sessionRingCirc = session.circ;
 
-			this.sessionTitleSpan = document.createElement('span');
-			this.sessionTitleSpan.className = 'cc-usageStrip__label';
-			this.sessionTitleSpan.textContent = '5h';
-
-			this.sessionBar = document.createElement('div');
-			this.sessionBar.className = 'cc-bar cc-bar--mini cc-usageStrip__bar';
-			this.sessionBarFill = document.createElement('div');
-			this.sessionBarFill.className = 'cc-bar__fill';
-			this.sessionBar.appendChild(this.sessionBarFill);
-
-			this.sessionInlineSpan = document.createElement('span');
-			this.sessionInlineSpan.className = 'cc-usageStrip__meta';
-
-			this.sessionGroup.appendChild(this.sessionTitleSpan);
-			this.sessionGroup.appendChild(this.sessionBar);
-			this.sessionGroup.appendChild(this.sessionInlineSpan);
-
-			this.weeklyGroup = document.createElement('div');
-			this.weeklyGroup.className = 'cc-usageGroup cc-usageStrip cc-usageStrip--end cc-hidden';
-
-			this.weeklyTitleSpan = document.createElement('span');
-			this.weeklyTitleSpan.className = 'cc-usageStrip__label';
-			this.weeklyTitleSpan.textContent = '7d';
-
-			this.weeklyBar = document.createElement('div');
-			this.weeklyBar.className = 'cc-bar cc-bar--mini cc-usageStrip__bar';
-			this.weeklyBarFill = document.createElement('div');
-			this.weeklyBarFill.className = 'cc-bar__fill';
-			this.weeklyBar.appendChild(this.weeklyBarFill);
-
-			this.weeklyInlineSpan = document.createElement('span');
-			this.weeklyInlineSpan.className = 'cc-usageStrip__meta';
-
-			this.weeklyGroup.appendChild(this.weeklyTitleSpan);
-			this.weeklyGroup.appendChild(this.weeklyBar);
-			this.weeklyGroup.appendChild(this.weeklyInlineSpan);
+			const weekly = this._buildMeter();
+			this.weeklyGroup = weekly.meter;
+			this.weeklyGroup.classList.add('cc-hidden');
+			this.weeklyPctSpan = weekly.pct;
+			this.weeklyRemainSpan = weekly.remain;
+			this.weeklyRing = weekly.ring;
+			this.weeklyRingFill = weekly.fill;
+			this._weeklyRingCirc = weekly.circ;
 
 			this.usageLine.appendChild(this.sessionGroup);
 			this.usageLine.appendChild(this.weeklyGroup);
@@ -295,7 +332,7 @@
 			this.usageRefreshBtn.className = 'cc-usageRefresh cc-tooltipTrigger';
 			this.usageRefreshBtn.setAttribute('aria-label', 'Refresh usage');
 			this.usageRefreshBtn.innerHTML = `
-				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+				<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 					<path d="M23 4v6h-6"></path>
 					<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
 				</svg>
@@ -338,7 +375,7 @@
 			this._copyTooltip = makeTooltip('Copy chat');
 			setupTooltip(this.copyButton, this._copyTooltip, { topOffset: 8 });
 
-			this._sessionTooltip = makeTooltip('5-hour session limit');
+			this._sessionTooltip = makeTooltip('5-hour session');
 			setupTooltip(this.sessionGroup, this._sessionTooltip, { topOffset: 8 });
 
 			this._weeklyTooltip = makeTooltip('7-day limit');
@@ -366,17 +403,11 @@
 
 		attachUsageLine() {
 			if (!this.usageLine) return;
-			const composer =
-				document.querySelector('.rounded-composer') ||
-				document.querySelector('[data-testid="chat-input-grid-container"]') ||
-				document.querySelector('[data-testid="chat-input-grid-area"]') ||
-				document.querySelector('fieldset') ||
-				CC.findModelSelector()?.parentElement;
+			const surface = CC.findComposerSurface();
+			if (!surface) return;
 
-			if (!composer) return;
-
-			if (composer.nextElementSibling !== this.usageLine) {
-				composer.after(this.usageLine);
+			if (surface.previousElementSibling !== this.usageLine) {
+				surface.before(this.usageLine);
 			}
 			this.refreshProgressChrome();
 		}
@@ -491,6 +522,17 @@
 			this.headerContainer.appendChild(this.headerDisplay);
 		}
 
+		_applyMeterLevel(fill, pctEl, meterEl, width) {
+			const warn = width >= 80 && width < 95;
+			const critical = width >= 95;
+			fill?.classList.toggle('cc-warn', warn);
+			fill?.classList.toggle('cc-critical', critical);
+			pctEl?.classList.toggle('cc-meter__pct--warn', warn);
+			pctEl?.classList.toggle('cc-meter__pct--critical', critical);
+			meterEl?.classList.toggle('cc-meter--warn', warn);
+			meterEl?.classList.toggle('cc-meter--critical', critical);
+		}
+
 		setUsage(usage) {
 			this.refreshProgressChrome();
 			const session = usage?.five_hour || null;
@@ -504,21 +546,17 @@
 				this.sessionResetMs = session.resets_at ? Date.parse(session.resets_at) : null;
 
 				const width = Math.max(0, Math.min(100, rawPct));
-				this.sessionBarFill.style.width = `${width}%`;
-				this.sessionBarFill.classList.toggle('cc-warn', width >= 80 && width < 95);
-				this.sessionBarFill.classList.toggle('cc-critical', width >= 95);
-				this.sessionBarFill.classList.remove('cc-full');
-				if (width >= 99.5) this.sessionBarFill.classList.add('cc-full');
+				this._setRingProgress(this.sessionRingFill, this._sessionRingCirc, width);
+				this._applyMeterLevel(this.sessionRingFill, this.sessionPctSpan, this.sessionGroup, width);
 			} else {
 				this._sessionUtilPct = 0;
-				this.sessionBarFill.style.width = '0%';
-				this.sessionBarFill.classList.remove('cc-warn', 'cc-critical', 'cc-full');
 				this.sessionResetMs = null;
+				this._setRingProgress(this.sessionRingFill, this._sessionRingCirc, 0);
+				this._applyMeterLevel(this.sessionRingFill, this.sessionPctSpan, this.sessionGroup, 0);
 			}
 
 			const hasWeekly = weekly && typeof weekly.utilization === 'number';
 			this.weeklyGroup?.classList.toggle('cc-hidden', !hasWeekly);
-			this.sessionGroup?.classList.toggle('cc-usageGroup--single', !hasWeekly);
 
 			if (hasWeekly) {
 				const rawPct = weekly.utilization;
@@ -526,43 +564,42 @@
 				this.weeklyResetMs = weekly.resets_at ? Date.parse(weekly.resets_at) : null;
 
 				const width = Math.max(0, Math.min(100, rawPct));
-				this.weeklyBarFill.style.width = `${width}%`;
-				this.weeklyBarFill.classList.toggle('cc-warn', width >= 80 && width < 95);
-				this.weeklyBarFill.classList.toggle('cc-critical', width >= 95);
-				this.weeklyBarFill.classList.remove('cc-full');
-				if (width >= 99.5) this.weeklyBarFill.classList.add('cc-full');
+				this._setRingProgress(this.weeklyRingFill, this._weeklyRingCirc, width);
+				this._applyMeterLevel(this.weeklyRingFill, this.weeklyPctSpan, this.weeklyGroup, width);
 			} else {
 				this._weeklyUtilPct = null;
-				if (this.weeklyInlineSpan) this.weeklyInlineSpan.textContent = '';
 				this.weeklyResetMs = null;
-				this.weeklyBarFill.style.width = '0%';
-				this.weeklyBarFill.classList.remove('cc-warn', 'cc-critical', 'cc-full');
+				if (this.weeklyPctSpan) this.weeklyPctSpan.textContent = '';
+				if (this.weeklyRemainSpan) this.weeklyRemainSpan.textContent = '';
+				this._setRingProgress(this.weeklyRingFill, this._weeklyRingCirc, 0);
+				this._applyMeterLevel(this.weeklyRingFill, this.weeklyPctSpan, this.weeklyGroup, 0);
 			}
 
 			this._renderUsageStripText();
 		}
 
+		_fillMeterText(pctEl, remainEl, pct, resetMs) {
+			if (pctEl) {
+				pctEl.textContent = typeof pct === 'number' ? CC.format.formatUsagePct(pct) : '';
+			}
+			if (remainEl) {
+				remainEl.textContent = CC.format.formatRemaining(resetMs);
+			}
+		}
+
 		_renderUsageStripText() {
-			if (this.sessionInlineSpan) {
-				if (typeof this._sessionUtilPct === 'number') {
-					this.sessionInlineSpan.textContent = CC.format.formatUsageStripText(
-						this._sessionUtilPct,
-						this.sessionResetMs
-					);
-				} else {
-					this.sessionInlineSpan.textContent = '';
-				}
-			}
-			if (this.weeklyInlineSpan) {
-				if (typeof this._weeklyUtilPct === 'number') {
-					this.weeklyInlineSpan.textContent = CC.format.formatUsageStripText(
-						this._weeklyUtilPct,
-						this.weeklyResetMs
-					);
-				} else {
-					this.weeklyInlineSpan.textContent = '';
-				}
-			}
+			this._fillMeterText(
+				this.sessionPctSpan,
+				this.sessionRemainSpan,
+				this._sessionUtilPct,
+				this.sessionResetMs
+			);
+			this._fillMeterText(
+				this.weeklyPctSpan,
+				this.weeklyRemainSpan,
+				this._weeklyUtilPct,
+				this.weeklyResetMs
+			);
 		}
 
 		tick() {
